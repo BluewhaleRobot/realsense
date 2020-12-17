@@ -38,8 +38,14 @@ Processing enabled by this node:
 -->
 
 <launch>
-  <arg name="camera"              default="camera"/>
-  <arg name="tf_prefix"           default="$(arg camera)"/>
+
+  <arg name="occupancy_xyz" default="true" />
+  <arg name="points_xyz" default="false" />
+
+  <arg name="camera" default="kinect" if="$(arg occupancy_xyz)"/>
+  <arg name="camera" default="kinect" unless="$(arg occupancy_xyz)"/>
+
+  <arg name="tf_prefix"           default="realsense_camera"/>
   <arg name="manager"             default="realsense2_camera_manager"/>
 
   <!-- Camera device specific arguments -->
@@ -49,7 +55,7 @@ Processing enabled by this node:
 
   <arg name="fisheye_width"       default="640"/>
   <arg name="fisheye_height"      default="480"/>
-  <arg name="enable_fisheye"      default="true"/>
+  <arg name="enable_fisheye"      default="false"/>
 
   <arg name="depth_width"         default="640"/>
   <arg name="depth_height"        default="480"/>
@@ -57,12 +63,12 @@ Processing enabled by this node:
 
   <arg name="infra_width"         default="640"/>
   <arg name="infra_height"        default="480"/>
-  <arg name="enable_infra1"       default="true"/>
-  <arg name="enable_infra2"       default="true"/>
+  <arg name="enable_infra1"       default="false"/>
+  <arg name="enable_infra2"       default="false"/>
 
   <arg name="color_width"         default="640"/>
   <arg name="color_height"        default="480"/>
-  <arg name="enable_color"        default="true"/>
+  <arg name="enable_color"        default="false"/>
 
   <arg name="fisheye_fps"         default="30"/>
   <arg name="depth_fps"           default="30"/>
@@ -70,8 +76,8 @@ Processing enabled by this node:
   <arg name="color_fps"           default="30"/>
   <arg name="gyro_fps"            default="400"/>
   <arg name="accel_fps"           default="250"/>
-  <arg name="enable_gyro"         default="true"/>
-  <arg name="enable_accel"        default="true"/>
+  <arg name="enable_gyro"         default="false"/>
+  <arg name="enable_accel"        default="false"/>
 
   <arg name="enable_pointcloud"   default="false"/>
   <arg name="enable_sync"         default="true"/>
@@ -95,7 +101,7 @@ Processing enabled by this node:
   <arg name="respawn"                         default="$(arg bond)" />
 
   <!-- Processing Modules -->
-  <arg name="rgb_processing"                  default="true"/>
+  <arg name="rgb_processing"                  default="false"/>
   <arg name="debayer_processing"              default="false" />
   <arg name="ir_processing"                   default="false"/>
   <arg name="depth_processing"                default="false"/>
@@ -148,44 +154,39 @@ Processing enabled by this node:
     </include>
 
     <!-- RGB processing -->
-    <include if="$(arg rgb_processing)"
+    <!-- <include if="$(arg rgb_processing)"
              file="$(find rgbd_launch)/launch/includes/rgb.launch.xml">
       <arg name="manager"                       value="$(arg manager)" />
       <arg name="respawn"                       value="$(arg respawn)" />
       <arg name="rgb"                           value="$(arg rgb)" />
       <arg name="debayer_processing"            value="$(arg debayer_processing)" />
-    </include>
+    </include> -->
 
-    <group if="$(eval depth_registered_processing and sw_registered_processing)">
-      <node pkg="nodelet" type="nodelet" name="register_depth"
-            args="load depth_image_proc/register $(arg manager) $(arg bond)" respawn="$(arg respawn)">
-        <remap from="rgb/camera_info"             to="$(arg rgb)/camera_info" />
-        <remap from="depth/camera_info"           to="$(arg depth)/camera_info" />
-        <remap from="depth/image_rect"            to="$(arg depth)/image_rect_raw" />
-        <remap from="depth_registered/image_rect" to="$(arg depth_registered)/sw_registered/image_rect_raw" />
-      </node>
+    <node if="$(arg points_xyz)"
+          pkg="nodelet" type="nodelet" name="$(arg depth)_points"
+          args="load depth_image_proc/point_cloud_xyz $(arg manager) $(arg bond)"
+          respawn="$(arg respawn)">
+      <remap from="image_rect" to="$(arg depth)/image_rect_raw"/>  <!-- Use raw image for efficiency -->
+      <remap from="points"     to="/kinect/depth/points" />
+    </node>
 
-      <!-- Publish registered XYZRGB point cloud with software registered input -->
-      <node pkg="nodelet" type="nodelet" name="points_xyzrgb_sw_registered"
-            args="load depth_image_proc/point_cloud_xyzrgb $(arg manager) $(arg bond)" respawn="$(arg respawn)">
-        <remap from="rgb/image_rect_color"        to="$(arg rgb)/image_rect_color" />
-        <remap from="rgb/camera_info"             to="$(arg rgb)/camera_info" />
-        <remap from="depth_registered/image_rect" to="$(arg depth_registered_filtered)/sw_registered/image_rect_raw" />
-        <remap from="depth_registered/points"     to="$(arg depth_registered)/points" />
-      </node>
-    </group>
-
-    <group if="$(eval depth_registered_processing and hw_registered_processing)">
-      <!-- Publish registered XYZRGB point cloud with hardware registered input (ROS Realsense depth alignment) -->
-      <node pkg="nodelet" type="nodelet" name="points_xyzrgb_hw_registered"
-            args="load depth_image_proc/point_cloud_xyzrgb $(arg manager) $(arg bond)" respawn="$(arg respawn)">
-        <remap from="rgb/image_rect_color"        to="$(arg rgb)/image_rect_color" />
-        <remap from="rgb/camera_info"             to="$(arg rgb)/camera_info" />
-        <remap from="depth_registered/image_rect" to="$(arg depth_registered)/image_raw" />
-        <remap from="depth_registered/points"     to="$(arg depth_registered_pub)/points" />
-      </node>
-    </group>
+    <!-- XYZ point cloud (optional, disable if publishing XYZRGB instead) -->
+    <node if="$(arg occupancy_xyz)"
+          pkg="nodelet" type="nodelet" name="$(arg depth)_points"
+          args="load depth_image_proc/occupancy_xyz $(arg manager) $(arg bond)"
+          respawn="$(arg respawn)">
+      <remap from="image_rect" to="$(arg depth)/image_rect_raw"/>  <!-- Use raw image for efficiency -->
+      <remap from="points"     to="/kinect/depth/points" />
+      <rosparam command="load" file="$(find depth_image_proc)/occupancy_xyz4.yaml"/>
+    </node>
 
   </group>
+
+  <arg name="base_name" default="kinect" />
+  <arg name="pi/2" value="1.5707963267948966" />
+  <node pkg="tf" type="static_transform_publisher" name="$(arg base_name)_base_link"
+    args="-0.2 0 0 0 0 0 base_footprint $(arg base_name)_link_new  50" />
+  <node pkg="tf" type="static_transform_publisher" name="$(arg base_name)_base_link2"
+    args="0 0 0 -$(arg pi/2) 0 -$(arg pi/2)  $(arg base_name)_link_new realsense_camera_link 50" />
 
 </launch>
