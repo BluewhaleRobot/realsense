@@ -186,7 +186,7 @@ Processing enabled by this node:
   <arg name="base_name" default="kinect" />
   <arg name="pi/2" value="1.5707963267948966" />
   <node pkg="tf" type="static_transform_publisher" name="$(arg base_name)_base_link"
-    args="-0.2 0 0 0 0 0 base_footprint $(arg base_name)_link_new  50" />
+    args="0.2 0 0 0 0 0 base_footprint $(arg base_name)_link_new  50" />
   <node pkg="tf" type="static_transform_publisher" name="$(arg base_name)_base_link2"
     args="0 0 0 -$(arg pi/2) 0 -$(arg pi/2)  $(arg base_name)_link_new realsense_camera_link 50" />
 
